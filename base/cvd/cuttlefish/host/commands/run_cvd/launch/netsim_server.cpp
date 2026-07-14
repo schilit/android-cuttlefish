@@ -26,12 +26,12 @@
 
 #include "cuttlefish/common/libs/fs/shared_fd.h"
 #include "cuttlefish/common/libs/utils/files.h"
-#include "cuttlefish/common/libs/utils/subprocess.h"
 #include "cuttlefish/host/libs/config/config_utils.h"
 #include "cuttlefish/host/libs/config/cuttlefish_config.h"
 #include "cuttlefish/host/libs/config/known_paths.h"
 #include "cuttlefish/host/libs/feature/command_source.h"
 #include "cuttlefish/host/libs/feature/feature.h"
+#include "cuttlefish/process/command_subprocess.h"
 #include "cuttlefish/result/result.h"
 
 namespace cuttlefish {
@@ -137,6 +137,9 @@ class NetsimServer : public CommandSource {
     hci_vsock_proxy.AddParameter("--client_tcp_host=127.0.0.1");
     hci_vsock_proxy.AddParameter("--client_tcp_port=",
                                  config_.rootcanal_hci_port());
+    if (instance_.vhost_user_vsock()) {
+      hci_vsock_proxy.AddParameter("--vhost_user_vsock=true");
+    }
 
     // Add command for forwarding the test port to a vsock server.
     Command test_vsock_proxy(SocketVsockProxyBinary());
@@ -149,6 +152,9 @@ class NetsimServer : public CommandSource {
     test_vsock_proxy.AddParameter("--client_tcp_host=127.0.0.1");
     test_vsock_proxy.AddParameter("--client_tcp_port=",
                                   config_.rootcanal_test_port());
+    if (instance_.vhost_user_vsock()) {
+      test_vsock_proxy.AddParameter("--vhost_user_vsock=true");
+    }
 
     std::vector<MonitorCommand> commands;
     commands.emplace_back(std::move(netsimd));

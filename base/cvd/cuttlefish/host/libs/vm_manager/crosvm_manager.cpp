@@ -28,17 +28,17 @@
 #include <utility>
 #include <vector>
 
-#include <android-base/file.h>
 #include "absl/strings/str_join.h"
-#include <json/json.h>
-#include <vulkan/vulkan.h>
+#include "android-base/file.h"
+#include "json/json.h"
+#include "vulkan/vulkan.h"
 
 #include "cuttlefish/common/libs/utils/files.h"
 #include "cuttlefish/common/libs/utils/host_info.h"
+#include "cuttlefish/common/libs/utils/in_sandbox.h"
 #include "cuttlefish/common/libs/utils/json.h"
 #include "cuttlefish/common/libs/utils/known_paths.h"
 #include "cuttlefish/common/libs/utils/network.h"
-#include "cuttlefish/common/libs/utils/subprocess.h"
 #include "cuttlefish/common/libs/utils/wait_for_unix_socket.h"
 #include "cuttlefish/host/libs/command_util/snapshot_utils.h"
 #include "cuttlefish/host/libs/config/config_constants.h"
@@ -52,6 +52,7 @@
 #include "cuttlefish/host/libs/vm_manager/qemu_manager.h"
 #include "cuttlefish/host/libs/vm_manager/vhost_user.h"
 #include "cuttlefish/posix/strerror.h"
+#include "cuttlefish/process/command_subprocess.h"
 #include "cuttlefish/result/result.h"
 
 namespace cuttlefish {
@@ -260,7 +261,7 @@ Result<std::string> CrosvmPathForVhostUserGpu(const CuttlefishConfig& config) {
       break;
     default:
       return CF_ERR("Unhandled host arch " << HostArchStr()
-                                       << " for vhost user gpu crosvm");
+                                           << " for vhost user gpu crosvm");
   }
   if (FileExists(crosvm_path)) {
     return crosvm_path;
@@ -277,10 +278,11 @@ Result<std::string> CrosvmPathForVhostUserGpu(const CuttlefishConfig& config) {
       break;
     default:
       return CF_ERR("Unhandled host arch " << HostArchStr()
-                                       << " for vhost user gpu crosvm");
+                                           << " for vhost user gpu crosvm");
   }
 
-  CF_EXPECT(FileExists(crosvm_path), "Failed to find crosvm prebuilt for vhost user gpu.");
+  CF_EXPECT(FileExists(crosvm_path),
+            "Failed to find crosvm prebuilt for vhost user gpu.");
   return crosvm_path;
 }
 
@@ -454,7 +456,7 @@ Result<void> ConfigureGpu(const CuttlefishConfig& config, Command* crosvm_cmd) {
       gpu_common_string + ",egl=true,surfaceless=true,glx=false" + gles_string +
       gpu_renderer_features_param;
 
-  std::string gpu_displays_string = "";
+  std::string gpu_displays_string = "displays=[],";
   if (instance.hwcomposer() != kHwComposerNone) {
     std::vector<std::string> gpu_displays_strings;
     for (const auto& display_config : instance.display_configs()) {
@@ -470,9 +472,10 @@ Result<void> ConfigureGpu(const CuttlefishConfig& config, Command* crosvm_cmd) {
           },
           ","));
     }
-    gpu_displays_string = "displays=[[" +
-                          absl::StrJoin(gpu_displays_strings, "],[") +
-                          "]],";
+    if (!gpu_displays_strings.empty()) {
+      gpu_displays_string = absl::StrCat(
+          "displays=[[", absl::StrJoin(gpu_displays_strings, "],["), "]],");
+    }
 
     crosvm_cmd->AddParameter("--wayland-sock=", instance.frames_socket_path());
   }
@@ -599,7 +602,8 @@ Result<std::vector<MonitorCommand>> CrosvmManager::StartCommands(
   }
 
   if (!instance.crosvm_v4l2_proxy().empty()) {
-    crosvm_cmd.Cmd().AddParameter("--v4l2-proxy=", instance.crosvm_v4l2_proxy());
+    crosvm_cmd.Cmd().AddParameter("--v4l2-proxy=",
+                                  instance.crosvm_v4l2_proxy());
   }
 
   if (instance.gdb_port() > 0) {
@@ -681,7 +685,7 @@ Result<std::vector<MonitorCommand>> CrosvmManager::StartCommands(
   }
 
 #ifdef __linux__
-  if (instance.enable_tap_devices()) {
+  if (instance.enable_tap_devices() && !InSandbox()) {
     // The PCI ordering of tap devices is important. Make sure any change here
     // is reflected in ethprime u-boot variable.
     // TODO(b/218364216, b/322862402): Crosvm occupies 32 PCI devices first and
@@ -955,7 +959,8 @@ Result<std::vector<MonitorCommand>> CrosvmManager::StartCommands(
     auto config = instance.media_configs()[index];
     if (config.type == CuttlefishConfig::MediaType::kV4l2EmulatedCameraSPlane ||
         config.type == CuttlefishConfig::MediaType::kV4l2EmulatedCameraMPlane) {
-      crosvm_cmd.Cmd().AddParameter("--vhost-user=type=media,socket=", instance.media_socket_path(index));
+      crosvm_cmd.Cmd().AddParameter("--vhost-user=type=media,socket=",
+                                    instance.media_socket_path(index));
     } else if (config.type == CuttlefishConfig::MediaType::kV4l2Proxy) {
       crosvm_cmd.Cmd().AddParameter("--v4l2-proxy=", "/dev/video0");
     }
@@ -1069,4 +1074,3 @@ Result<bool> CrosvmManager::WaitForRestoreComplete(SharedFD stop_fd) const {
 
 }  // namespace vm_manager
 }  // namespace cuttlefish
-

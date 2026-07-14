@@ -21,12 +21,10 @@
 #include <vector>
 
 #include "cuttlefish/common/libs/utils/environment.h"
+#include "cuttlefish/common/libs/utils/is_google_corp.h"
 #include "cuttlefish/flag_parser/flag.h"
 #include "cuttlefish/flag_parser/gflags_compat.h"
-#include "cuttlefish/common/libs/utils/is_google_corp.h"
 #include "cuttlefish/host/commands/cvd/cli/command_request.h"
-#include "cuttlefish/host/commands/cvd/cli/commands/command_handler.h"
-#include "cuttlefish/host/commands/cvd/cli/types.h"
 #include "cuttlefish/host/libs/web/http_client/curl_global_init.h"
 #include "cuttlefish/host/libs/web/http_client/curl_http_client.h"
 #include "cuttlefish/host/libs/web/http_client/http_client.h"
@@ -87,7 +85,7 @@ Result<void> CvdLoginCommand::Handle(const CommandRequest& request) {
   return {};
 }
 
-cvd_common::Args CvdLoginCommand::CmdList() const { return {"login"}; }
+std::vector<std::string> CvdLoginCommand::CmdList() const { return {"login"}; }
 
 std::string CvdLoginCommand::SummaryHelp() const { return kSummaryHelpText; }
 
@@ -100,11 +98,6 @@ Result<std::string> CvdLoginCommand::DetailedHelp(
         "google3/cloud/android/login";
   }
   return kHelpMessage + google_appendix;
-}
-
-/** Create a credentials file */
-std::unique_ptr<CvdCommandHandler> NewLoginCommand() {
-  return std::make_unique<CvdLoginCommand>();
 }
 
 }  // namespace cuttlefish

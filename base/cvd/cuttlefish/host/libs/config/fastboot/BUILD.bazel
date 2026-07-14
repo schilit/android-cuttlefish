@@ -12,12 +12,8 @@ cf_cc_library(
         "flags.cpp",
         "launch.cpp",
     ],
-    hdrs = [
-        "fastboot.h",
-    ],
-    clang_format_enabled = False,
+    hdrs = ["fastboot.h"],
     deps = [
-        "//cuttlefish/common/libs/utils:subprocess",
         "//cuttlefish/flag_parser",
         "//cuttlefish/host/commands/kernel_log_monitor:kernel_log_monitor_utils",
         "//cuttlefish/host/libs/config:boot_flow",
@@ -26,6 +22,7 @@ cf_cc_library(
         "//cuttlefish/host/libs/config:cuttlefish_config",
         "//cuttlefish/host/libs/config:known_paths",
         "//cuttlefish/host/libs/feature",
+        "//cuttlefish/process:command_subprocess",
         "//cuttlefish/result",
         "//libbase",
         "@abseil-cpp//absl/log",

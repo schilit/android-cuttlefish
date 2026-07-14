@@ -15,16 +15,16 @@
  */
 
 #include "cuttlefish/host/commands/cvd/cli/command_request.h"
-#include "cuttlefish/flag_parser/gflags_compat.h"
-#include "cuttlefish/flag_parser/flag.h"
 
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
-#include <android-base/file.h>
+#include "android-base/file.h"
 
+#include "cuttlefish/flag_parser/flag.h"
+#include "cuttlefish/flag_parser/gflags_compat.h"
 #include "cuttlefish/host/commands/cvd/cli/command_request.h"
 #include "cuttlefish/host/commands/cvd/cli/selector/selector_common_parser.h"
 #include "cuttlefish/result/result.h"
@@ -46,7 +46,8 @@ constexpr std::array help_str_opts{
 };
 
 }  // namespace
-CommandRequest::CommandRequest(cvd_common::Args args, cvd_common::Envs env,
+CommandRequest::CommandRequest(std::vector<std::string> args,
+                               std::unordered_map<std::string, std::string> env,
                                selector::SelectorOptions selectors)
     : args_(std::move(args)),
       env_(std::move(env)),
@@ -82,12 +83,14 @@ CommandRequestBuilder CommandRequestBuilder::AddArguments(
   return AddArguments(std::vector<std::string_view>(args));
 }
 
-CommandRequestBuilder& CommandRequestBuilder::SetEnv(cvd_common::Envs env) & {
+CommandRequestBuilder& CommandRequestBuilder::SetEnv(
+    std::unordered_map<std::string, std::string> env) & {
   env_ = std::move(env);
   return *this;
 }
 
-CommandRequestBuilder CommandRequestBuilder::SetEnv(cvd_common::Envs env) && {
+CommandRequestBuilder CommandRequestBuilder::SetEnv(
+    std::unordered_map<std::string, std::string> env) && {
   env_ = std::move(env);
   return *this;
 }

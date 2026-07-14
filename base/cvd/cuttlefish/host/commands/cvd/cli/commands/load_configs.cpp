@@ -22,9 +22,9 @@
 #include <utility>
 #include <vector>
 
-#include <fmt/core.h>
-#include <fmt/format.h>
 #include "absl/log/log.h"
+#include "fmt/core.h"
+#include "fmt/format.h"
 
 #include "cuttlefish/common/libs/utils/files.h"
 #include "cuttlefish/flag_parser/flag.h"
@@ -36,7 +36,6 @@
 #include "cuttlefish/host/commands/cvd/cli/parser/load_config.pb.h"
 #include "cuttlefish/host/commands/cvd/cli/parser/load_configs_parser.h"
 #include "cuttlefish/host/commands/cvd/cli/selector/selector_common_parser.h"
-#include "cuttlefish/host/commands/cvd/cli/types.h"
 #include "cuttlefish/host/commands/cvd/fetch/fetch_cvd.h"
 #include "cuttlefish/host/commands/cvd/instances/cvd_persistent_data.pb.h"
 #include "cuttlefish/host/commands/cvd/instances/instance_manager.h"
@@ -55,7 +54,6 @@ constexpr char kLoadSubCmd[] = "load";
 
 constexpr char kSummaryHelpText[] =
     "Creates and starts an instance group from a JSON configuration file";
-
 
 Result<CommandRequest> BuildFetchCmd(const CommandRequest& request,
                                      const CvdFlags& cvd_flags) {
@@ -171,8 +169,7 @@ Result<void> LoadConfigsCommand::Handle(const CommandRequest& request) {
 
   group_creation_mtx.lock();
   // Don't use CF_EXPECT here or the mutex will be left locked.
-  auto group_res =
-      CreateGroup(instance_manager_, flags_.base_dir, env_spec);
+  auto group_res = CreateGroup(instance_manager_, flags_.base_dir, env_spec);
   if (group_res.ok()) {
     // Have to initialize the group_name variable before releasing the mutex.
     group_name = (*group_res).GroupName();
@@ -213,7 +210,7 @@ Result<void> LoadConfigsCommand::LoadGroup(const CommandRequest& request,
   if (!cvd_flags.fetch_cvd_flags.empty()) {
     CommandRequest fetch_cmd = CF_EXPECT(BuildFetchCmd(request, cvd_flags));
     std::unique_ptr<CvdCommandHandler> fetch_handler =
-        NewCvdFetchCommandHandler();
+        std::make_unique<CvdFetchCommandHandler>();
     Result<void> fetch_res = fetch_handler->Handle(fetch_cmd);
     if (!fetch_res.ok()) {
       group.SetAllStates(cvd::INSTANCE_STATE_PREPARE_FAILED);
@@ -232,12 +229,14 @@ Result<void> LoadConfigsCommand::LoadGroup(const CommandRequest& request,
   CommandRequest start_cmd =
       CF_EXPECT(BuildStartCommand(request, cvd_flags, group));
   std::unique_ptr<CvdCommandHandler> start_handler =
-      NewCvdStartCommandHandler(instance_manager_);
+      std::make_unique<CvdStartCommandHandler>(instance_manager_);
   CF_EXPECT(start_handler->Handle(start_cmd));
   return {};
 }
 
-cvd_common::Args LoadConfigsCommand::CmdList() const { return {kLoadSubCmd}; }
+std::vector<std::string> LoadConfigsCommand::CmdList() const {
+  return {kLoadSubCmd};
+}
 
 std::string LoadConfigsCommand::SummaryHelp() const { return kSummaryHelpText; }
 
@@ -321,12 +320,6 @@ std::vector<HelpParagraph> LoadConfigsCommand::CommonCommandDescription() {
 Result<std::vector<Flag>> LoadConfigsCommand::Flags(
     const CommandRequest& request) {
   return BuildCvdLoadFlags(flags_);
-}
-
-std::unique_ptr<CvdCommandHandler> NewLoadConfigsCommand(
-    InstanceManager& instance_manager) {
-  return std::unique_ptr<CvdCommandHandler>(
-      new LoadConfigsCommand(instance_manager));
 }
 
 }  // namespace cuttlefish

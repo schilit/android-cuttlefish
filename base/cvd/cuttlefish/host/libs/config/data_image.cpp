@@ -30,8 +30,6 @@
 #include "cuttlefish/common/libs/fs/shared_fd.h"
 #include "cuttlefish/common/libs/utils/files.h"
 #include "cuttlefish/common/libs/utils/host_info.h"
-#include "cuttlefish/common/libs/utils/subprocess.h"
-#include "cuttlefish/common/libs/utils/subprocess_managed_stdio.h"
 #include "cuttlefish/host/libs/config/ap_boot_flow.h"
 #include "cuttlefish/host/libs/config/boot_flow.h"
 #include "cuttlefish/host/libs/config/config_utils.h"
@@ -41,6 +39,8 @@
 #include "cuttlefish/host/libs/config/esp/make_fat_image.h"
 #include "cuttlefish/host/libs/config/openwrt_args.h"
 #include "cuttlefish/host/libs/image_aggregator/mbr.h"
+#include "cuttlefish/process/command_subprocess.h"
+#include "cuttlefish/process/managed_stdio.h"
 #include "cuttlefish/result/result.h"
 
 namespace cuttlefish {
@@ -153,7 +153,7 @@ static Result<DataImageAction> ChooseDataImageAction(
   return DataImageAction::kNoAction;
 }
 
-} // namespace
+}  // namespace
 
 Result<void> CreateBlankEmptyImage(std::string_view image, int num_mb) {
   VLOG(0) << "Creating " << image;
@@ -245,10 +245,13 @@ static bool EspRequiredForAPBootFlow(APBootFlow ap_boot_flow) {
   return ap_boot_flow == APBootFlow::Grub;
 }
 
-static void InitLinuxArgs(Arch target_arch, LinuxEspBuilder& linux_esp_builder) {
+static void InitLinuxArgs(Arch target_arch,
+                          LinuxEspBuilder& linux_esp_builder) {
   linux_esp_builder.Root("/dev/vda2");
 
-  linux_esp_builder.Argument("console", "hvc0").Argument("panic", "-1").Argument("noefi");
+  linux_esp_builder.Argument("console", "hvc0")
+      .Argument("panic", "-1")
+      .Argument("noefi");
 
   switch (target_arch) {
     case Arch::Arm:
@@ -370,4 +373,4 @@ Result<void> InitializeEspImage(
   return {};
 }
 
-} // namespace cuttlefish
+}  // namespace cuttlefish

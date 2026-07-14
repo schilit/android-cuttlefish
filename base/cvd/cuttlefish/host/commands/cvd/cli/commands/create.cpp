@@ -17,6 +17,8 @@
 #include "cuttlefish/host/commands/cvd/cli/commands/create.h"
 
 #include <errno.h>
+#include <fmt/core.h>
+#include <fmt/format.h>
 #include <stddef.h>
 
 #include <algorithm>
@@ -25,23 +27,24 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
-#include <fmt/core.h>
-#include <fmt/format.h>
 #include "absl/log/log.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/str_split.h"
 
 #include "cuttlefish/common/libs/utils/contains.h"
 #include "cuttlefish/common/libs/utils/environment.h"
 #include "cuttlefish/common/libs/utils/files.h"
+#include "cuttlefish/common/libs/utils/users.h"
 #include "cuttlefish/flag_parser/flag.h"
 #include "cuttlefish/flag_parser/gflags_compat.h"
-#include "cuttlefish/common/libs/utils/users.h"
 #include "cuttlefish/host/commands/cvd/cli/command_request.h"
 #include "cuttlefish/host/commands/cvd/cli/commands/command_handler.h"
 #include "cuttlefish/host/commands/cvd/cli/commands/host_tool_target.h"
@@ -50,9 +53,10 @@
 #include "cuttlefish/host/commands/cvd/cli/help_format.h"
 #include "cuttlefish/host/commands/cvd/cli/selector/creation_analyzer.h"
 #include "cuttlefish/host/commands/cvd/cli/selector/num_instances_parser.h"
+#include "cuttlefish/host/commands/cvd/cli/selector/selector.h"
 #include "cuttlefish/host/commands/cvd/cli/selector/selector_common_parser.h"
 #include "cuttlefish/host/commands/cvd/cli/selector/selector_constants.h"
-#include "cuttlefish/host/commands/cvd/cli/types.h"
+#include "cuttlefish/host/commands/cvd/cli/utils.h"
 #include "cuttlefish/host/commands/cvd/instances/cvd_persistent_data.pb.h"
 #include "cuttlefish/host/commands/cvd/instances/instance_manager.h"
 #include "cuttlefish/host/commands/cvd/instances/local_instance_group.h"
@@ -67,12 +71,10 @@ namespace {
 using selector::AnalyzeCreation;
 using selector::GroupCreationInfo;
 
-constexpr char kSummaryHelpText[] =
-    "Create a Cuttlefish instance group";
+constexpr char kSummaryHelpText[] = "Create a Cuttlefish instance group";
 
-
-
-std::string DefaultHostPath(const cvd_common::Envs& envs) {
+std::string DefaultHostPath(
+    const std::unordered_map<std::string, std::string>& envs) {
   for (const auto& key : {kAndroidHostOut, kAndroidSoongHostOut, "HOME"}) {
     auto it = envs.find(key);
     if (it != envs.end()) {
@@ -82,7 +84,8 @@ std::string DefaultHostPath(const cvd_common::Envs& envs) {
   return CurrentDirectory();
 }
 
-std::string DefaultProductPath(const cvd_common::Envs& envs) {
+std::string DefaultProductPath(
+    const std::unordered_map<std::string, std::string>& envs) {
   for (const auto& key : {kAndroidProductOut, "HOME"}) {
     auto it = envs.find(key);
     if (it != envs.end()) {
@@ -92,9 +95,8 @@ std::string DefaultProductPath(const cvd_common::Envs& envs) {
   return CurrentDirectory();
 }
 
-
 Result<CommandRequest> CreateLoadCommand(const CommandRequest& request,
-                                         cvd_common::Args& args,
+                                         std::vector<std::string>& args,
                                          const std::string& config_file) {
   return CF_EXPECT(CommandRequestBuilder()
                        .SetEnv(request.Env())
@@ -104,9 +106,9 @@ Result<CommandRequest> CreateLoadCommand(const CommandRequest& request,
                        .Build());
 }
 
-Result<CommandRequest> CreateStartCommand(const LocalInstanceGroup& group,
-                                          const cvd_common::Args& args,
-                                          const cvd_common::Envs& envs) {
+Result<CommandRequest> CreateStartCommand(
+    const LocalInstanceGroup& group, const std::vector<std::string>& args,
+    const std::unordered_map<std::string, std::string>& envs) {
   selector::SelectorOptions selector_options{
       .group_name = group.GroupName(),
   };
@@ -118,8 +120,22 @@ Result<CommandRequest> CreateStartCommand(const LocalInstanceGroup& group,
                        .Build());
 }
 
-Result<cvd_common::Envs> GetEnvs(const CommandRequest& request) {
-  cvd_common::Envs envs = request.Env();
+Result<void> StartGroup(
+    const LocalInstanceGroup& group,
+    const std::vector<std::string>& subcmd_args,
+    const std::unordered_map<std::string, std::string>& envs,
+    InstanceManager& instance_manager) {
+  const CommandRequest start_cmd =
+      CF_EXPECT(CreateStartCommand(group, subcmd_args, envs));
+  std::unique_ptr<CvdCommandHandler> start_handler =
+      std::make_unique<CvdStartCommandHandler>(instance_manager);
+  CF_EXPECT(start_handler->Handle(start_cmd));
+  return {};
+}
+
+Result<std::unordered_map<std::string, std::string>> GetEnvs(
+    const CommandRequest& request) {
+  std::unordered_map<std::string, std::string> envs = request.Env();
   if (auto it = envs.find("HOME"); it != envs.end() && it->second.empty()) {
     envs.erase(it);
   }
@@ -236,16 +252,80 @@ std::vector<Flag> BuildSelectorFlagsForCreateHelp(
   };
 }
 
+bool IsDeviceRunning(const LocalInstanceGroup& group) {
+  return std::ranges::any_of(group.Instances(), &LocalInstance::IsActive);
+}
+
+Result<bool> MatchPaths(const LocalInstanceGroup& group,
+                        const std::string& target_host,
+                        const std::vector<std::string>& target_products) {
+  const std::string real_group_host =
+      CF_EXPECT(RealPath(group.HostArtifactsPath()));
+  const std::string real_target_host = CF_EXPECT(RealPath(target_host));
+
+  if (real_group_host != real_target_host) {
+    return false;
+  }
+
+  const std::vector<std::string> group_products =
+      absl::StrSplit(group.ProductOutPath(), ',');
+
+  std::vector<std::string> real_group_products;
+  for (const auto& path : group_products) {
+    real_group_products.push_back(CF_EXPECT(RealPath(path)));
+  }
+
+  std::vector<std::string> real_target_products;
+  for (const auto& path : target_products) {
+    real_target_products.push_back(CF_EXPECT(RealPath(path)));
+  }
+
+  return real_group_products == real_target_products;
+}
+
 }  // namespace
 
 CvdCreateCommandHandler::CvdCreateCommandHandler(
     InstanceManager& instance_manager)
     : instance_manager_(instance_manager) {}
 
+Result<std::optional<LocalInstanceGroup>>
+CvdCreateCommandHandler::FindReusableGroup(
+    const selector::SelectorOptions& selectors,
+    const std::unordered_map<std::string, std::string>& envs) {
+  InstanceDatabase::Filter filter =
+      selector::BuildFilterFromSelectors(selectors);
+
+  const std::vector<LocalInstanceGroup> groups =
+      CF_EXPECT(instance_manager_.FindGroups(filter));
+  if (groups.empty()) {
+    return std::nullopt;
+  }
+  CF_EXPECT_EQ(groups.size(), 1,
+               "Unclear which group to reuse, try `cvd reset -y`");
+
+  auto target_host_it = envs.find(kAndroidHostOut);
+  CF_EXPECT(target_host_it != envs.end());
+
+  auto target_product_it = envs.find(kAndroidProductOut);
+  CF_EXPECT(target_product_it != envs.end());
+
+  const std::vector<std::string> target_products = ExpandProductPaths(
+      target_product_it->second, num_instances_parser_.NumInstances());
+  bool match =
+      CF_EXPECT(MatchPaths(groups[0], target_host_it->second, target_products));
+  CF_EXPECT(std::move(match),
+            "Trying to change the host paths on an existing group");
+  CF_EXPECT(!IsDeviceRunning(groups[0]),
+            "Group is already running, try `cvd stop`");
+  return groups[0];
+}
+
 Result<void> CvdCreateCommandHandler::Handle(const CommandRequest& request) {
   std::vector<std::string> subcmd_args = request.SubcommandArguments();
 
-  cvd_common::Envs envs = CF_EXPECT(GetEnvs(request));
+  std::unordered_map<std::string, std::string> envs =
+      CF_EXPECT(GetEnvs(request));
 
   CF_EXPECT(ConsumeFlags(ConfigFileModeFlags(), subcmd_args));
 
@@ -253,7 +333,7 @@ Result<void> CvdCreateCommandHandler::Handle(const CommandRequest& request) {
     CommandRequest subrequest = CF_EXPECT(
         CreateLoadCommand(request, subcmd_args, own_flags_.config_file));
     std::unique_ptr<CvdCommandHandler> load_handler =
-        NewLoadConfigsCommand(instance_manager_);
+        std::make_unique<LoadConfigsCommand>(instance_manager_);
     CF_EXPECT(load_handler->Handle(subrequest));
     return {};
   }
@@ -275,23 +355,23 @@ Result<void> CvdCreateCommandHandler::Handle(const CommandRequest& request) {
   // CreationAnalyzer needs these to be set in the environment
   envs[kAndroidHostOut] = AbsolutePath(own_flags_.host_path);
   envs[kAndroidProductOut] = AbsolutePath(own_flags_.product_path);
-  auto group =
-      CF_EXPECT(CreateGroup(instance_manager_, subcmd_args, envs, request));
 
-  group.SetAllStates(cvd::INSTANCE_STATE_STOPPED);
-  CF_EXPECT(instance_manager_.UpdateInstanceGroup(group));
+  std::optional<LocalInstanceGroup> group;
+  if (own_flags_.reuse) {
+    group = CF_EXPECT(FindReusableGroup(request.Selectors(), envs));
+  }
+  if (!group.has_value()) {
+    group = CF_EXPECT(CreateGroup(subcmd_args, envs, request));
+  }
+  CF_EXPECT(group.has_value());
 
   if (own_flags_.start) {
-    CommandRequest start_cmd =
-        CF_EXPECT(CreateStartCommand(group, subcmd_args, envs));
-    std::unique_ptr<CvdCommandHandler> start_handler =
-        NewCvdStartCommandHandler(instance_manager_);
-    CF_EXPECT(start_handler->Handle(start_cmd));
+    CF_EXPECT(StartGroup(*group, subcmd_args, envs, instance_manager_));
 
     if (CF_EXPECT(IsDefaultGroup(request))) {
       // For backward compatibility, we add extra symlink in system wide home
       // when HOME is NOT overridden and selector flags are NOT given.
-      auto symlink_res = CreateSymlinks(group);
+      auto symlink_res = CreateSymlinks(*group);
       if (!symlink_res.ok()) {
         LOG(ERROR) << "Failed to create symlinks for default group: "
                    << symlink_res.error();
@@ -303,8 +383,8 @@ Result<void> CvdCreateCommandHandler::Handle(const CommandRequest& request) {
 }
 
 Result<LocalInstanceGroup> CvdCreateCommandHandler::CreateGroup(
-    InstanceManager& instance_manager,
-    const std::vector<std::string>& subcmd_args, const cvd_common::Envs& envs,
+    const std::vector<std::string>& subcmd_args,
+    const std::unordered_map<std::string, std::string>& envs,
     const CommandRequest& request) {
   GroupCreationInfo creation_info = CF_EXPECT(AnalyzeCreation({
       .envs = envs,
@@ -313,15 +393,20 @@ Result<LocalInstanceGroup> CvdCreateCommandHandler::CreateGroup(
       .instance_ids = num_instances_parser_.InstanceIds(),
   }));
 
-  auto groups = CF_EXPECT(instance_manager.FindGroups(
+  auto groups = CF_EXPECT(instance_manager_.FindGroups(
       {.group_name = creation_info.group_creation_params.group_name}));
   CF_EXPECTF(groups.empty(), "Group named '{}' already exists",
              creation_info.group_creation_params.group_name);
-  return instance_manager.CreateInstanceGroup(
-      std::move(creation_info.group_creation_params),
-      std::move(creation_info.group_directories));
-}
 
+  LocalInstanceGroup group = CF_EXPECT(instance_manager_.CreateInstanceGroup(
+      std::move(creation_info.group_creation_params),
+      std::move(creation_info.group_directories)));
+
+  group.SetAllStates(cvd::INSTANCE_STATE_STOPPED);
+  CF_EXPECT(instance_manager_.UpdateInstanceGroup(group));
+
+  return group;
+}
 
 std::string CvdCreateCommandHandler::SummaryHelp() const {
   return kSummaryHelpText;
@@ -400,10 +485,12 @@ std::vector<Flag> CvdCreateCommandHandler::ConfigFileModeFlags() {
 }
 
 std::vector<Flag> CvdCreateCommandHandler::FlagModeFlags(
-    const cvd_common::Envs& env, const selector::SelectorOptions& selector_options) {
+    const std::unordered_map<std::string, std::string>& env,
+    const selector::SelectorOptions& selector_options) {
   own_flags_.host_path = DefaultHostPath(env);
   own_flags_.product_path = DefaultProductPath(env);
   own_flags_.start = true;
+  own_flags_.reuse = false;
   std::vector<Flag> flags = num_instances_parser_.Flags(selector_options);
   flags.emplace_back(
       GflagsCompatFlag("host_path", own_flags_.host_path)
@@ -417,12 +504,12 @@ std::vector<Flag> CvdCreateCommandHandler::FlagModeFlags(
                 "$ANDROID_PRODUCT_OUT, $HOME or the current directory."));
   flags.emplace_back(GflagsCompatFlag("start", own_flags_.start)
                          .Help("Whether to start the instance group."));
+  flags.emplace_back(
+      GflagsCompatFlag("reuse", own_flags_.reuse)
+          .Help("Whether to attempt reusing an existing group. Will fail if "
+                "there are multiple matching groups, or the chosen group has a "
+                "host tools / guest image mismatch."));
   return flags;
-}
-
-std::unique_ptr<CvdCommandHandler> NewCvdCreateCommandHandler(
-    InstanceManager& instance_manager) {
-  return std::make_unique<CvdCreateCommandHandler>(instance_manager);
 }
 
 }  // namespace cuttlefish

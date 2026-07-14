@@ -18,10 +18,10 @@
 #include <optional>
 #include <string>
 
-#include <json/value.h>
+#include "json/value.h"
 
-#include "cuttlefish/common/libs/utils/subprocess.h"
 #include "cuttlefish/host/libs/vm_manager/pci.h"
+#include "cuttlefish/process/command_subprocess.h"
 #include "cuttlefish/result/result.h"
 
 namespace cuttlefish {

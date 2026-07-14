@@ -37,8 +37,6 @@
 #include "cuttlefish/common/libs/utils/files.h"
 #include "cuttlefish/common/libs/utils/host_info.h"
 #include "cuttlefish/common/libs/utils/in_sandbox.h"
-#include "cuttlefish/common/libs/utils/subprocess.h"
-#include "cuttlefish/common/libs/utils/subprocess_managed_stdio.h"
 #include "cuttlefish/host/commands/assemble_cvd/boot_image_utils.h"
 #include "cuttlefish/host/commands/assemble_cvd/flags/boot_image.h"
 #include "cuttlefish/host/commands/assemble_cvd/flags/kernel_path.h"
@@ -49,6 +47,8 @@
 #include "cuttlefish/host/libs/config/gpu_mode.h"
 #include "cuttlefish/pretty/optional.h"
 #include "cuttlefish/pretty/string.h"
+#include "cuttlefish/process/command_subprocess.h"
+#include "cuttlefish/process/managed_stdio.h"
 #include "cuttlefish/result/result.h"
 
 namespace cuttlefish {
@@ -146,7 +146,7 @@ Result<void> ParseGuestConfigTextProto(const std::string& guest_config_path,
         DefaultHostArtifactsPath(input_config.domkey_mapping_config());
   }
 
-  if(proto_config.has_audio()) {
+  if (proto_config.has_audio()) {
     guest_config.audio_settings = proto_config.audio();
   }
 
@@ -248,9 +248,9 @@ Result<void> ParseGuestConfigTxt(const std::string& guest_config_path,
   if (const Result<std::string> res =
           MapGetResult(info, "output_audio_streams_count");
       res.ok()) {
-    CF_EXPECTF(
-        absl::SimpleAtoi(*res, &guest_config.output_audio_streams_count),
-        "Failed to parse value '{}' for output audio stream count", *res);
+    CF_EXPECTF(absl::SimpleAtoi(*res, &guest_config.output_audio_streams_count),
+               "Failed to parse value '{}' for output audio stream count",
+               *res);
   }
 
   if (const Result<std::string> res =

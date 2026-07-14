@@ -1,16 +1,17 @@
 load("@protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
-load("//cuttlefish/bazel:rules.bzl", "COPTS", "cf_cc_binary", "cf_cc_library", "cf_cc_test")
+load("//cuttlefish/bazel:rules.bzl", "COPTS", "cf_build_test", "cf_cc_binary", "cf_cc_library", "cf_cc_test")
 
 package(
     default_visibility = ["//:android_cuttlefish"],
 )
 
+cf_build_test(name = "cf_build_test")
+
 cf_cc_library(
     name = "alloc",
     srcs = ["alloc.cc"],
     hdrs = ["alloc.h"],
-    clang_format_enabled = False,
     deps = [
         "//cuttlefish/common/libs/fs",
         "//cuttlefish/host/commands/cvdalloc:interface",
@@ -24,7 +25,6 @@ cf_cc_library(
 cf_cc_binary(
     name = "assemble_cvd",
     srcs = ["assemble_cvd.cc"],
-    clang_format_enabled = False,
     deps = [
         "//cuttlefish/common/libs/fs",
         "//cuttlefish/common/libs/utils:contains",
@@ -88,11 +88,9 @@ cf_cc_library(
     name = "boot_config",
     srcs = ["boot_config.cc"],
     hdrs = ["boot_config.h"],
-    clang_format_enabled = False,
     deps = [
         "//cuttlefish/common/libs/utils:files",
         "//cuttlefish/common/libs/utils:size_utils",
-        "//cuttlefish/common/libs/utils:subprocess",
         "//cuttlefish/host/commands/assemble_cvd:bootconfig_args",
         "//cuttlefish/host/libs/avb",
         "//cuttlefish/host/libs/config:ap_boot_flow",
@@ -101,6 +99,7 @@ cf_cc_library(
         "//cuttlefish/host/libs/config:kernel_args",
         "//cuttlefish/host/libs/config:mkenvimage_slim",
         "//cuttlefish/host/libs/vm_manager",
+        "//cuttlefish/process:command_subprocess",
         "//cuttlefish/result",
         "//libbase",
         "@abseil-cpp//absl/log",
@@ -113,11 +112,9 @@ cf_cc_library(
     name = "boot_image_utils",
     srcs = ["boot_image_utils.cc"],
     hdrs = ["boot_image_utils.h"],
-    clang_format_enabled = False,
     deps = [
         "//cuttlefish/common/libs/fs",
         "//cuttlefish/common/libs/utils:files",
-        "//cuttlefish/common/libs/utils:subprocess",
         "//cuttlefish/host/commands/assemble_cvd/boot_image",
         "//cuttlefish/host/commands/assemble_cvd/boot_image:boot_image_builder",
         "//cuttlefish/host/commands/assemble_cvd/boot_image:vendor_boot_image",
@@ -138,6 +135,7 @@ cf_cc_library(
         "//cuttlefish/io:shared_fd",
         "//cuttlefish/io:string",
         "//cuttlefish/io:write_exact",
+        "//cuttlefish/process:command_subprocess",
         "//cuttlefish/result",
         "//libbase",
         "@abseil-cpp//absl/log",
@@ -150,7 +148,6 @@ cf_cc_library(
     name = "bootconfig_args",
     srcs = ["bootconfig_args.cpp"],
     hdrs = ["bootconfig_args.h"],
-    clang_format_enabled = False,
     deps = [
         "//cuttlefish/common/libs/utils:contains",
         "//cuttlefish/common/libs/utils:json",
@@ -168,13 +165,10 @@ cf_cc_library(
     name = "clean",
     srcs = ["clean.cc"],
     hdrs = ["clean.h"],
-    clang_format_enabled = False,
     deps = [
         "//cuttlefish/common/libs/utils:files",
         "//cuttlefish/common/libs/utils:in_sandbox",
         "//cuttlefish/common/libs/utils:proc_file_utils",
-        "//cuttlefish/common/libs/utils:subprocess",
-        "//cuttlefish/common/libs/utils:subprocess_managed_stdio",
         "//cuttlefish/host/libs/config:config_utils",
         "//cuttlefish/posix:strerror",
         "//cuttlefish/result",
@@ -257,7 +251,6 @@ cf_cc_library(
     name = "disk_image_flags_vectorization",
     srcs = ["disk_image_flags_vectorization.cc"],
     hdrs = ["disk_image_flags_vectorization.h"],
-    clang_format_enabled = False,
     deps = [
         "//cuttlefish/host/commands/assemble_cvd:assemble_cvd_flags",
         "//cuttlefish/host/commands/assemble_cvd:super_image_mixer",
@@ -282,7 +275,6 @@ cf_cc_library(
     name = "display",
     srcs = ["display.cpp"],
     hdrs = ["display.h"],
-    clang_format_enabled = False,
     deps = [
         "//cuttlefish/flag_parser",
         "//cuttlefish/host/libs/config:config_flag",
@@ -300,7 +292,6 @@ cf_cc_library(
     name = "flag_feature",
     srcs = ["flag_feature.cpp"],
     hdrs = ["flag_feature.h"],
-    clang_format_enabled = False,
     deps = [
         "//cuttlefish/host/libs/config:config_flag",
         "//cuttlefish/host/libs/feature",
@@ -316,7 +307,6 @@ cf_cc_library(
     name = "flags",
     srcs = ["flags.cc"],
     hdrs = ["flags.h"],
-    clang_format_enabled = False,
     deps = [
         "//cuttlefish/common/libs/utils:base64",
         "//cuttlefish/common/libs/utils:container",
@@ -401,7 +391,6 @@ cf_cc_library(
     name = "guest_config",
     srcs = ["guest_config.cc"],
     hdrs = ["guest_config.h"],
-    clang_format_enabled = False,
     deps = [
         "//cuttlefish/common/libs/key_equals_value",
         "//cuttlefish/common/libs/utils:device_type",
@@ -409,8 +398,6 @@ cf_cc_library(
         "//cuttlefish/common/libs/utils:files",
         "//cuttlefish/common/libs/utils:host_info",
         "//cuttlefish/common/libs/utils:in_sandbox",
-        "//cuttlefish/common/libs/utils:subprocess",
-        "//cuttlefish/common/libs/utils:subprocess_managed_stdio",
         "//cuttlefish/host/commands/assemble_cvd:boot_image_utils",
         "//cuttlefish/host/commands/assemble_cvd:guest_config_cc_proto",
         "//cuttlefish/host/commands/assemble_cvd/flags:boot_image",
@@ -423,6 +410,8 @@ cf_cc_library(
         "//cuttlefish/pretty:optional",
         "//cuttlefish/pretty:string",
         "//cuttlefish/pretty:struct",
+        "//cuttlefish/process:command_subprocess",
+        "//cuttlefish/process:managed_stdio",
         "//cuttlefish/result",
         "//libbase",
         "@abseil-cpp//absl/strings",
@@ -436,14 +425,11 @@ cf_cc_library(
     name = "graphics_flags",
     srcs = ["graphics_flags.cc"],
     hdrs = ["graphics_flags.h"],
-    clang_format_enabled = False,
     deps = [
         "//cuttlefish/common/libs/utils:contains",
         "//cuttlefish/common/libs/utils:files",
         "//cuttlefish/common/libs/utils:host_info",
         "//cuttlefish/common/libs/utils:semver",
-        "//cuttlefish/common/libs/utils:subprocess",
-        "//cuttlefish/common/libs/utils:subprocess_managed_stdio",
         "//cuttlefish/host/commands/assemble_cvd:guest_config",
         "//cuttlefish/host/graphics_detector:graphics_detector_cc_proto",
         "//cuttlefish/host/libs/config:config_constants",
@@ -452,12 +438,15 @@ cf_cc_library(
         "//cuttlefish/host/libs/config:guest_hwui_renderer",
         "//cuttlefish/host/libs/config:guest_renderer_preload",
         "//cuttlefish/host/libs/config:vmm_mode",
+        "//cuttlefish/process:command_subprocess",
+        "//cuttlefish/process:managed_stdio",
         "//cuttlefish/result",
         "//libbase",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
         "@fmt",
         "@protobuf",
+        "@protobuf//src/google/protobuf/io:tokenizer",
     ],
 )
 
@@ -523,7 +512,6 @@ cf_cc_library(
     name = "misc_info",
     srcs = ["misc_info.cc"],
     hdrs = ["misc_info.h"],
-    clang_format_enabled = False,
     deps = [
         "//cuttlefish/common/libs/fs",
         "//cuttlefish/common/libs/utils:contains",
@@ -565,7 +553,6 @@ cf_cc_library(
     name = "resolve_instance_files",
     srcs = ["resolve_instance_files.cc"],
     hdrs = ["resolve_instance_files.h"],
-    clang_format_enabled = False,
     deps = [
         "//cuttlefish/host/commands/assemble_cvd:assemble_cvd_flags",
         "//cuttlefish/host/commands/assemble_cvd/flags:boot_image",
@@ -586,13 +573,11 @@ cf_cc_library(
     name = "super_image_mixer",
     srcs = ["super_image_mixer.cc"],
     hdrs = ["super_image_mixer.h"],
-    clang_format_enabled = False,
     deps = [
         "//cuttlefish/common/libs/key_equals_value",
         "//cuttlefish/common/libs/utils:archive",
         "//cuttlefish/common/libs/utils:contains",
         "//cuttlefish/common/libs/utils:files",
-        "//cuttlefish/common/libs/utils:subprocess",
         "//cuttlefish/host/commands/assemble_cvd:misc_info",
         "//cuttlefish/host/libs/avb",
         "//cuttlefish/host/libs/config:config_utils",
@@ -600,6 +585,7 @@ cf_cc_library(
         "//cuttlefish/host/libs/config:fetcher_config",
         "//cuttlefish/host/libs/config:file_source",
         "//cuttlefish/host/libs/config:known_paths",
+        "//cuttlefish/process:command_subprocess",
         "//cuttlefish/result",
         "//libbase",
         "@abseil-cpp//absl/log",
@@ -611,7 +597,6 @@ cf_cc_library(
     name = "touchpad",
     srcs = ["touchpad.cpp"],
     hdrs = ["touchpad.h"],
-    clang_format_enabled = False,
     deps = [
         "//cuttlefish/flag_parser",
         "//cuttlefish/host/libs/config:config_flag",
@@ -628,20 +613,19 @@ cf_cc_library(
     name = "vendor_dlkm_utils",
     srcs = ["vendor_dlkm_utils.cc"],
     hdrs = ["vendor_dlkm_utils.h"],
-    clang_format_enabled = False,
     deps = [
         "//cuttlefish/common/libs/fs",
         "//cuttlefish/common/libs/utils:contains",
         "//cuttlefish/common/libs/utils:disk_usage",
         "//cuttlefish/common/libs/utils:environment",
         "//cuttlefish/common/libs/utils:files",
-        "//cuttlefish/common/libs/utils:subprocess",
         "//cuttlefish/host/commands/assemble_cvd:boot_image_utils",
         "//cuttlefish/host/commands/assemble_cvd:kernel_module_parser",
         "//cuttlefish/host/libs/avb",
         "//cuttlefish/host/libs/config:config_utils",
         "//cuttlefish/host/libs/config:known_paths",
         "//cuttlefish/io:shared_fd",
+        "//cuttlefish/process:command_subprocess",
         "//cuttlefish/result",
         "//libbase",
         "@abseil-cpp//absl/log",
@@ -652,13 +636,8 @@ cf_cc_library(
 
 cf_cc_library(
     name = "assemble_cvd_flags",
-    srcs = [
-        "assemble_cvd_flags.cpp",
-    ],
-    hdrs = [
-        "assemble_cvd_flags.h",
-    ],
-    clang_format_enabled = False,
+    srcs = ["assemble_cvd_flags.cpp"],
+    hdrs = ["assemble_cvd_flags.h"],
     deps = [
         "//cuttlefish/common/libs/utils:environment",
         "//cuttlefish/host/commands/assemble_cvd:flags_defaults",
@@ -675,7 +654,6 @@ cf_cc_library(
     name = "media",
     srcs = ["media.cpp"],
     hdrs = ["media.h"],
-    clang_format_enabled = False,
     deps = [
         "//cuttlefish/flag_parser",
         "//cuttlefish/host/libs/config:config_flag",

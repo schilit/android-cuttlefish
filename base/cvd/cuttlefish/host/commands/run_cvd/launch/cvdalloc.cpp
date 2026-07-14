@@ -27,12 +27,11 @@
 #include <utility>
 #include <vector>
 
-#include <fruit/component.h>
-#include <fruit/fruit_forward_decls.h>
 #include "absl/log/log.h"
+#include "fruit/component.h"
+#include "fruit/fruit_forward_decls.h"
 
 #include "allocd/alloc_utils.h"
-#include "cuttlefish/common/libs/utils/subprocess.h"
 #include "cuttlefish/host/commands/cvdalloc/privilege.h"
 #include "cuttlefish/host/commands/cvdalloc/sem.h"
 #include "cuttlefish/host/libs/config/cuttlefish_config.h"
@@ -41,6 +40,7 @@
 #include "cuttlefish/host/libs/feature/feature.h"
 #include "cuttlefish/host/libs/vm_manager/vm_manager.h"
 #include "cuttlefish/posix/strerror.h"
+#include "cuttlefish/process/command_subprocess.h"
 #include "cuttlefish/result/result.h"
 
 namespace cuttlefish {
@@ -48,11 +48,7 @@ namespace cuttlefish {
 constexpr std::chrono::seconds kCvdAllocateTimeout = std::chrono::seconds(30);
 constexpr std::chrono::seconds kCvdTeardownTimeout = std::chrono::seconds(2);
 
-enum class CvdallocStatus {
-  kUnknown = 0,
-  kAvailable,
-  kFailed
-};
+enum class CvdallocStatus { kUnknown = 0, kAvailable, kFailed };
 
 Cvdalloc::Cvdalloc(const CuttlefishConfig::InstanceSpecific& instance)
     : instance_(instance), status_(CvdallocStatus::kUnknown) {}
@@ -79,7 +75,7 @@ bool Cvdalloc::Enabled() const {
   return instance_.use_cvdalloc();
 }
 
-std::unordered_set<SetupFeature *> Cvdalloc::Dependencies() const { return {}; }
+std::unordered_set<SetupFeature*> Cvdalloc::Dependencies() const { return {}; }
 
 Result<void> Cvdalloc::WaitForAvailability() {
   std::lock_guard<std::mutex> lock(availability_mutex_);
@@ -106,7 +102,7 @@ Result<void> Cvdalloc::ResultSetup() {
 }
 
 Result<void> Cvdalloc::BinaryIsValid(std::string_view path) {
-  struct stat st;
+  struct stat st;  // NOLINT(misc-include-cleaner): sys/stat.h
   int r = stat(path.data(), &st);
   CF_EXPECT(r == 0, "Could not stat the cvdalloc binary at "
                         << path << ": " << StrError(errno));

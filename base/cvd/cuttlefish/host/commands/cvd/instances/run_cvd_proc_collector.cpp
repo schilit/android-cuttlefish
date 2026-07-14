@@ -26,8 +26,9 @@
 #include <vector>
 
 #include "absl/log/log.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/numbers.h"
+#include "absl/strings/str_cat.h"
+#include "android-base/file.h"
 
 #include "cuttlefish/common/libs/utils/contains.h"
 #include "cuttlefish/common/libs/utils/files.h"
@@ -92,7 +93,8 @@ static Result<std::string> StopCvdPath(const RunCvdProcInfo& info) {
   return SearchFilesInPath(cvd_dir, stop_bins);
 }
 
-static std::optional<std::string> HostOut(const cvd_common::Envs& envs) {
+static std::optional<std::string> HostOut(
+    const std::unordered_map<std::string, std::string>& envs) {
   if (auto it = envs.find(kAndroidHostOut); it != envs.end()) {
     return it->second;
   }

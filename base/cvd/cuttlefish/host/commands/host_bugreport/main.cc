@@ -16,24 +16,24 @@
 
 #include <string>
 
-#include <android-base/file.h>
-#include <android-base/strings.h>
-#include <fmt/format.h>
-#include <gflags/gflags.h>
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_join.h"
+#include "android-base/file.h"
+#include "android-base/strings.h"
+#include "fmt/format.h"
+#include "gflags/gflags.h"
 
 #include "cuttlefish/common/libs/fs/shared_fd.h"
 #include "cuttlefish/common/libs/utils/environment.h"
 #include "cuttlefish/common/libs/utils/files.h"
 #include "cuttlefish/common/libs/utils/known_paths.h"
-#include "cuttlefish/common/libs/utils/subprocess.h"
 #include "cuttlefish/common/libs/utils/tee_logging.h"
 #include "cuttlefish/host/libs/config/cuttlefish_config.h"
 #include "cuttlefish/host/libs/log_names/log_names.h"
 #include "cuttlefish/host/libs/zip/zip_file.h"
 #include "cuttlefish/posix/strerror.h"
+#include "cuttlefish/process/command_subprocess.h"
 #include "cuttlefish/result/result.h"
 
 DEFINE_string(output, "host_bugreport.zip", "Where to write the output");
@@ -125,8 +125,9 @@ Result<void> AddAdbBugreport(const CuttlefishConfig::InstanceSpecific& instance,
 // the fact that something was missing/inaccessible is still useful debugging
 // information.
 void TakeHostBugreport(const CuttlefishConfig* config, WritableZip& archive) {
-  LogError(AddFileAt(archive, config->AssemblyPath(kLogNameAssembleCvd),
-                     absl::StrCat("cuttlefish_assembly", "/", kLogNameAssembleCvd)));
+  LogError(
+      AddFileAt(archive, config->AssemblyPath(kLogNameAssembleCvd),
+                absl::StrCat("cuttlefish_assembly", "/", kLogNameAssembleCvd)));
   LogError(AddFileAt(archive, config->AssemblyPath("cuttlefish_config.json"),
                      "cuttlefish_assembly/cuttlefish_config.json"));
 

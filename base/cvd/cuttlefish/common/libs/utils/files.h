@@ -24,8 +24,8 @@
 #include <string_view>
 #include <vector>
 
-#include "cuttlefish/result/result.h"
 #include "cuttlefish/common/libs/fs/shared_fd.h"
+#include "cuttlefish/result/result.h"
 
 namespace cuttlefish {
 bool FileExists(const std::string& path, bool follow_symlinks = true);
@@ -39,10 +39,11 @@ inline Result<bool> CanRename(const std::string& source,
 Result<ino_t> FileInodeNumber(const std::string& path);
 Result<bool> AreHardLinked(const std::string& source,
                            const std::string& destination);
-Result<std::string> CreateHardLink(const std::string& target,
-                                   const std::string& hardlink,
-                                   bool overwrite_existing = false);
-Result<void> HardLinkDirecoryContentsRecursively(
+
+Result<std::string> LinkOrCopy(const std::string& target,
+                               const std::string& destination,
+                               bool overwrite_existing = false);
+Result<void> LinkOrCopyDirectoryContentsRecursively(
     const std::string& source, const std::string& destination);
 // Merges the contents of the source directory into the destination directory.
 // The source directory is empty after this operation.
@@ -110,6 +111,7 @@ std::vector<std::string> Path(const std::string& env_name = "PATH");
 Result<std::string> Search(const std::vector<std::string>& path,
                            std::string_view name);
 
-Result<SharedFD> CreateOrReuseAndDrainFifo(const std::string& path, mode_t mode);
+Result<SharedFD> CreateOrReuseAndDrainFifo(const std::string& path,
+                                           mode_t mode);
 
 }  // namespace cuttlefish

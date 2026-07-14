@@ -20,6 +20,7 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <sys/poll.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include <chrono>
@@ -49,7 +50,6 @@
 #include "cuttlefish/common/libs/fs/shared_buf.h"
 #include "cuttlefish/common/libs/fs/shared_fd.h"
 #include "cuttlefish/common/libs/utils/files.h"
-#include "cuttlefish/common/libs/utils/subprocess.h"
 #include "cuttlefish/common/libs/utils/tee_logging.h"
 #include "cuttlefish/host/commands/assemble_cvd/flags_defaults.h"
 #include "cuttlefish/host/commands/kernel_log_monitor/kernel_log_server.h"
@@ -67,6 +67,7 @@
 #include "cuttlefish/host/libs/feature/kernel_log_pipe_provider.h"
 #include "cuttlefish/host/libs/vm_manager/vm_manager.h"
 #include "cuttlefish/posix/strerror.h"
+#include "cuttlefish/process/command_subprocess.h"
 #include "cuttlefish/result/result.h"
 
 using grpc::ClientContext;
@@ -79,7 +80,8 @@ DEFINE_int32(reboot_notification_fd, CF_DEFAULTS_REBOOT_NOTIFICATION_FD,
              "A file descriptor to notify when boot completes.");
 
 DEFINE_int32(boot_timeout_secs, 600,
-             "Wait for completed boot before failing. On qemu and gem5, this timeout is disabled unless flag is specified");
+             "Wait for completed boot before failing. On qemu and gem5, this "
+             "timeout is disabled unless flag is specified");
 
 namespace cuttlefish {
 namespace {
@@ -579,8 +581,8 @@ class CvdBootStateMachine : public SetupFeature, public KernelLogPipeConsumer {
                     "cleanly shut down.";
     }
 
-    auto fail_res = RunLauncherAction(
-        *monitor_res, LauncherAction::kFail, std::optional<int>());
+    auto fail_res = RunLauncherAction(*monitor_res, LauncherAction::kFail,
+                                      std::optional<int>());
     if (!fail_res.ok()) {
       LOG(ERROR) << "TimeoutThreadLoop: Failed to send fail action: "
                  << fail_res.error();

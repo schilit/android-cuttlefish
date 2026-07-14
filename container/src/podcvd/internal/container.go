@@ -125,7 +125,9 @@ func (m *CuttlefishContainerManagerImpl) InspectContainer(ctx context.Context, n
 }
 
 func (m *CuttlefishContainerManagerImpl) CreateAndStartContainer(ctx context.Context, extraFlags []string, name string) (string, error) {
-	args := []string{"run", "-d", "-t", "--cap-add", "NET_ADMIN"}
+	args := []string{"run", "-d", "-t", "--rm", "--cap-add", "NET_ADMIN"}
+	// TODO(b/383428636): Remove this when vhost_user_vsock is enabled by default.
+	args = append(args, "--security-opt", "seccomp=unconfined")
 	devices := []string{
 		"/dev/kvm",
 		"/dev/net/tun",
@@ -134,6 +136,12 @@ func (m *CuttlefishContainerManagerImpl) CreateAndStartContainer(ctx context.Con
 	}
 	for _, dev := range devices {
 		args = append(args, "--device", dev+":"+dev+":rwm")
+	}
+	if hasNvidiaGPU() {
+		args = append(args,
+			"-e", "NVIDIA_DRIVER_CAPABILITIES=all",
+			"--device", "android.com/gpu-podcvd=all",
+		)
 	}
 	args = append(args, extraFlags...)
 	if name != "" {
@@ -225,6 +233,16 @@ func useTTY(stdin io.Reader, stdout io.Writer, stderr io.Writer) bool {
 		return false
 	}
 	if f, ok := stderr.(interface{ Fd() uintptr }); !ok || !Isatty(f.Fd()) {
+		return false
+	}
+	return true
+}
+
+func hasNvidiaGPU() bool {
+	if _, err := os.Stat("/dev/nvidiactl"); err != nil {
+		return false
+	}
+	if _, err := os.Stat("/etc/cdi/nvidia-podcvd.yaml"); err != nil {
 		return false
 	}
 	return true

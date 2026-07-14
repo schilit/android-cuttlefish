@@ -1,5 +1,5 @@
 load("@rules_cc//cc:cc_import.bzl", "cc_import")
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("//cuttlefish/bazel:rules.bzl", "cf_build_test")
 
 package_group(
     name = "android_cuttlefish",
@@ -12,9 +12,18 @@ package(
     default_visibility = ["//:android_cuttlefish"],
 )
 
+cf_build_test(
+    name = "cf_build_test",
+    srcs = [
+        "MODULE.bazel",
+        "build_variables.bzl",
+    ],
+)
+
 exports_files([
     ".clang-format",
     ".clang-tidy",
+    ".shellcheckrc",
 ])
 
 genrule(
@@ -27,9 +36,14 @@ filegroup(
     name = "clang_tidy_config",
     srcs = [
         ".clang-tidy",
+        "//allocd:.clang-tidy",
+        "//cuttlefish/common:.clang-tidy",
+        "//cuttlefish/common/libs/confui:.clang-tidy",
         "//cuttlefish/common/libs/key_equals_value:.clang-tidy",
-        "//cuttlefish/flag_parser:.clang-tidy",
+        "//cuttlefish/common/libs/transport:.clang-tidy",
+        "//cuttlefish/host:.clang-tidy",
         "//cuttlefish/host/commands/assemble_cvd/android_build:.clang-tidy",
+        "//cuttlefish/host/commands/console_forwarder:.clang-tidy",
         "//cuttlefish/host/commands/cvd/cli/commands:.clang-tidy",
         "//cuttlefish/host/commands/kernel_log_monitor:.clang-tidy",
         "//cuttlefish/host/commands/mkenvimage_slim:.clang-tidy",
@@ -39,9 +53,7 @@ filegroup(
         "//cuttlefish/host/libs/web:.clang-tidy",
         "//cuttlefish/host/libs/zip:.clang-tidy",
         "//cuttlefish/host/libs/zip/libzip_cc:.clang-tidy",
-        "//cuttlefish/io:.clang-tidy",
-        "//cuttlefish/posix:.clang-tidy",
-        "//cuttlefish/result:.clang-tidy",
+        "//teeui/libteeui:.clang-tidy",
     ],
 )
 

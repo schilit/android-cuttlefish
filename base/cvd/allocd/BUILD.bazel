@@ -1,9 +1,11 @@
 load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("//cuttlefish/bazel:rules.bzl", "cf_cc_binary", "cf_cc_library")
 
 package(
     default_visibility = ["//:android_cuttlefish"],
 )
+
+exports_files([".clang-tidy"])
 
 string_flag(
     name = "driver",
@@ -24,15 +26,10 @@ config_setting(
     },
 )
 
-cc_library(
+cf_cc_library(
     name = "alloc_utils",
-    srcs = [
-        "alloc_utils.cpp",
-    ],
-    hdrs = [
-        "alloc_utils.h",
-    ],
-    copts = ["-std=c++20"],
+    srcs = ["alloc_utils.cpp"],
+    hdrs = ["alloc_utils.h"],
     deps = select({
         ":netlink": [":alloc_netlink"],
         "//conditions:default": [":alloc_iproute2"],
@@ -40,9 +37,9 @@ cc_library(
         "//cuttlefish/common/libs/fs",
         "//cuttlefish/common/libs/utils:files",
         "//cuttlefish/common/libs/utils:network",
-        "//cuttlefish/common/libs/utils:subprocess",
         "//cuttlefish/host/commands/cvd/utils:common",
         "//cuttlefish/host/libs/config:logging",
+        "//cuttlefish/process:command_subprocess",
         "//cuttlefish/result",
         "@abseil-cpp//absl/base:no_destructor",
         "@abseil-cpp//absl/log",
@@ -51,17 +48,12 @@ cc_library(
     ],
 )
 
-cc_library(
+cf_cc_library(
     name = "alloc_iproute2",
-    srcs = [
-        "alloc_iproute2.cpp",
-    ],
-    hdrs = [
-        "alloc_driver.h",
-    ],
-    copts = ["-std=c++20"],
+    srcs = ["alloc_iproute2.cpp"],
+    hdrs = ["alloc_driver.h"],
     deps = [
-        "//cuttlefish/common/libs/utils:subprocess",
+        "//cuttlefish/process:command_subprocess",
         "//cuttlefish/result",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
@@ -69,19 +61,14 @@ cc_library(
     ],
 )
 
-cc_library(
+cf_cc_library(
     name = "alloc_netlink",
-    srcs = [
-        "alloc_netlink.cpp",
-    ],
-    hdrs = [
-        "alloc_driver.h",
-    ],
-    copts = ["-std=c++20"],
+    srcs = ["alloc_netlink.cpp"],
+    hdrs = ["alloc_driver.h"],
     deps = [
         "//allocd/net:netlink",
         "//cuttlefish/common/libs/fs",
-        "//cuttlefish/common/libs/utils:subprocess",
+        "//cuttlefish/process:command_subprocess",
         "//cuttlefish/result",
         "//libbase",
         "@abseil-cpp//absl/log",

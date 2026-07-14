@@ -32,17 +32,19 @@
 #include "android-base/file.h"
 #include "fmt/format.h"
 
+#include "cuttlefish/ansi_codes/should_color.h"
+#include "cuttlefish/ansi_codes/terminal_colors.h"
 #include "cuttlefish/common/libs/utils/environment.h"
 #include "cuttlefish/common/libs/utils/files.h"
+#include "cuttlefish/common/libs/utils/tee_logging.h"
 #include "cuttlefish/flag_parser/flag.h"
 #include "cuttlefish/flag_parser/gflags_compat.h"
-#include "cuttlefish/common/libs/utils/subprocess.h"
-#include "cuttlefish/common/libs/utils/tee_logging.h"
 #include "cuttlefish/host/commands/cvd/cli/log_files.h"
 #include "cuttlefish/host/commands/cvd/cvd.h"
 #include "cuttlefish/host/commands/cvd/utils/common.h"
 #include "cuttlefish/host/commands/cvd/version/version.h"
 #include "cuttlefish/posix/strerror.h"
+#include "cuttlefish/process/command_subprocess.h"
 // TODO(315772518) Re-enable once metrics send is reenabled
 // #include "cuttlefish/host/commands/cvd/metrics/cvd_metrics_api.h"
 
@@ -58,7 +60,7 @@ namespace {
  *  e.g. cvd start --verbosity=DEBUG
  *
  */
-LogSeverity CvdVerbosityOption(cvd_common::Args& all_args) {
+LogSeverity CvdVerbosityOption(std::vector<std::string>& all_args) {
   std::string verbosity_flag_value;
   std::vector<Flag> verbosity_flag{
       GflagsCompatFlag("verbosity", verbosity_flag_value)};
@@ -96,7 +98,6 @@ Result<void> EnsureCvdDirectoriesExist() {
   return {};
 }
 
-
 /**
  * Increase the file descriptor limit for this process and its descendants.
  *
@@ -124,7 +125,7 @@ void IncreaseFileLimit() {
   }
 }
 
-Result<void> CvdMain(cvd_common::Args all_args) {
+Result<void> CvdMain(std::vector<std::string> all_args) {
   if (!isatty(0)) {
     LOG(INFO) << GetVersionIds().ToString();
   }
@@ -168,13 +169,14 @@ Result<void> CvdMain(cvd_common::Args all_args) {
  * is red.
  */
 std::string ColoredUrl(const std::string& url) {
-  if (!isatty(STDERR_FILENO)) {
+  if (!ShouldColorStderr()) {
     return url;
   }
   std::string coloring_prefix = "\033[01;31m";
   std::string output;
   auto ls_colors = StringFromEnv("LS_COLORS", "");
-  std::vector<std::string_view> colors_vec = absl::StrSplit(ls_colors, ':', absl::SkipEmpty());
+  std::vector<std::string_view> colors_vec =
+      absl::StrSplit(ls_colors, ':', absl::SkipEmpty());
   std::unordered_map<std::string, std::string> colors;
   for (const auto& color_entry : colors_vec) {
     std::vector<std::string_view> tokenized =
@@ -200,7 +202,7 @@ std::string ColoredUrl(const std::string& url) {
   return output;
 }
 
-void InitializeLogs(std::vector<std::string>& all_args) {
+std::optional<std::string> InitializeLogs(std::vector<std::string>& all_args) {
   LogSeverity verbosity = CvdVerbosityOption(all_args);
   MetadataLevel metadata_level =
       isatty(0) ? MetadataLevel::ONLY_MESSAGE : MetadataLevel::FULL;
@@ -215,6 +217,8 @@ void InitializeLogs(std::vector<std::string>& all_args) {
   LogToStderrAndFiles(log_files, "", metadata_level, verbosity);
 
   (void)PruneLogsDirectory(CvdUserLogDir());
+
+  return log_files.empty() ? std::optional<std::string>() : log_files[0];
 }
 
 }  // namespace
@@ -226,11 +230,17 @@ int main(int argc, char** argv) {
 
   std::vector<std::string> all_args(argv, argv + argc);
 
-  cuttlefish::InitializeLogs(all_args);
+  std::optional<std::string> log_file = cuttlefish::InitializeLogs(all_args);
 
   cuttlefish::Result<void> result = cuttlefish::CvdMain(std::move(all_args));
   if (result.ok()) {
     return 0;
+  } else if (log_file.has_value() && isatty(2)) {
+    VLOG(0) << result.error();
+    cuttlefish::TerminalColors colors(cuttlefish::ShouldColorStderr());
+    std::cerr << colors.Red() << "'cvd' encountered an error." << colors.Reset()
+              << " Please see '" << colors.Cyan() << *log_file << colors.Reset()
+              << "' for the complete failure report.\n";
   } else {
     // TODO: we should not print the stack trace, instead, we should rely on
     // each handler to print the error message directly in the client's
@@ -245,6 +255,6 @@ int main(int argc, char** argv) {
     std::cerr << "        " << cuttlefish::ColoredUrl(kCuttlefishBugUrl)
               << std::endl
               << std::endl;
-    return -1;
   }
+  return -1;
 }

@@ -38,13 +38,13 @@
 #include "cuttlefish/common/libs/utils/disk_usage.h"
 #include "cuttlefish/common/libs/utils/environment.h"
 #include "cuttlefish/common/libs/utils/files.h"
-#include "cuttlefish/common/libs/utils/subprocess.h"
 #include "cuttlefish/host/commands/assemble_cvd/boot_image_utils.h"
 #include "cuttlefish/host/commands/assemble_cvd/kernel_module_parser.h"
 #include "cuttlefish/host/libs/avb/avb.h"
 #include "cuttlefish/host/libs/config/config_utils.h"
 #include "cuttlefish/host/libs/config/known_paths.h"
 #include "cuttlefish/io/shared_fd.h"
+#include "cuttlefish/process/command_subprocess.h"
 #include "cuttlefish/result/result.h"
 
 namespace cuttlefish {
@@ -61,7 +61,8 @@ constexpr size_t RoundUp(size_t a, size_t divisor) {
 
 template <typename Container>
 bool WriteLinesToFile(const Container& lines, const std::string& path) {
-  SharedFD fd = SharedFD::Open(path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0640);
+  SharedFD fd =
+      SharedFD::Open(path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0640);
   if (!fd->IsOpen()) {
     PLOG(ERROR) << "Failed to open " << path;
     return false;

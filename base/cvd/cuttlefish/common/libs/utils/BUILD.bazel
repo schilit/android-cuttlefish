@@ -8,10 +8,9 @@ cf_cc_library(
     name = "archive",
     srcs = ["archive.cpp"],
     hdrs = ["archive.h"],
-    clang_format_enabled = False,
     deps = [
-        "//cuttlefish/common/libs/utils:subprocess",
-        "//cuttlefish/common/libs/utils:subprocess_managed_stdio",
+        "//cuttlefish/process:command_subprocess",
+        "//cuttlefish/process:managed_stdio",
         "//cuttlefish/result",
         "//libbase",
         "@abseil-cpp//absl/log",
@@ -33,7 +32,6 @@ cf_cc_library(
 cf_cc_test(
     name = "base64_test",
     srcs = ["base64_test.cpp"],
-    clang_format_enabled = False,
     deps = [
         "//cuttlefish/common/libs/utils:base64",
         "//cuttlefish/result:result_matchers",
@@ -74,10 +72,9 @@ cf_cc_library(
     name = "disk_usage",
     srcs = ["disk_usage.cpp"],
     hdrs = ["disk_usage.h"],
-    clang_format_enabled = False,
     deps = [
-        "//cuttlefish/common/libs/utils:subprocess",
-        "//cuttlefish/common/libs/utils:subprocess_managed_stdio",
+        "//cuttlefish/process:command_subprocess",
+        "//cuttlefish/process:managed_stdio",
         "//cuttlefish/result",
         "//libbase",
         "@abseil-cpp//absl/strings",
@@ -112,7 +109,6 @@ cf_cc_library(
     name = "files",
     srcs = ["files.cpp"],
     hdrs = ["files.h"],
-    clang_format_enabled = False,
     target_compatible_with = [
         "@platforms//os:linux",  # SEEK_DATA
     ],
@@ -180,7 +176,6 @@ cf_cc_library(
     name = "host_info",
     srcs = ["host_info.cpp"],
     hdrs = ["host_info.h"],
-    clang_format_enabled = False,
     deps = [
         "//libbase",
         "@abseil-cpp//absl/base:no_destructor",
@@ -232,12 +227,7 @@ cf_cc_library(
     name = "network",
     srcs = ["network.cpp"],
     hdrs = ["network.h"],
-    clang_format_enabled = False,
     deps = [
-        "//cuttlefish/common/libs/utils:files",
-        "//cuttlefish/common/libs/utils:subprocess",
-        "//cuttlefish/common/libs/utils:subprocess_managed_stdio",
-        "//cuttlefish/result",
         "//libbase",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/strings",
@@ -348,40 +338,9 @@ cf_cc_library(
 )
 
 cf_cc_library(
-    name = "subprocess",
-    srcs = ["subprocess.cpp"],
-    hdrs = ["subprocess.h"],
-    deps = [
-        "//cuttlefish/common/libs/fs",
-        "//cuttlefish/common/libs/utils:contains",
-        "//cuttlefish/common/libs/utils:files",
-        "//cuttlefish/result",
-        "//libbase",
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/log:check",
-        "@abseil-cpp//absl/strings",
-    ],
-)
-
-cf_cc_library(
-    name = "subprocess_managed_stdio",
-    srcs = ["subprocess_managed_stdio.cc"],
-    hdrs = ["subprocess_managed_stdio.h"],
-    clang_format_enabled = False,
-    deps = [
-        "//cuttlefish/common/libs/fs",
-        "//cuttlefish/common/libs/utils:subprocess",
-        "//cuttlefish/result",
-        "//libbase",
-        "@abseil-cpp//absl/log",
-    ],
-)
-
-cf_cc_library(
     name = "tee_logging",
     srcs = ["tee_logging.cpp"],
     hdrs = ["tee_logging.h"],
-    clang_format_enabled = False,
     deps = [
         "//cuttlefish/common/libs/fs",
         "//cuttlefish/common/libs/utils:contains",
@@ -447,11 +406,9 @@ cf_cc_library(
     name = "users",
     srcs = ["users.cpp"],
     hdrs = ["users.h"],
-    clang_format_enabled = False,
     deps = [
         "//cuttlefish/common/libs/utils:contains",
         "//cuttlefish/result",
-        "//libbase",
         "@abseil-cpp//absl/log",
     ],
 )
@@ -491,9 +448,9 @@ cf_cc_library(
     hdrs = ["wait_for_unix_socket.h"],
     deps = [
         "//cuttlefish/common/libs/utils:files",
-        "//cuttlefish/common/libs/utils:subprocess",
-        "//cuttlefish/common/libs/utils:subprocess_managed_stdio",
         "//cuttlefish/common/libs/utils:wait_for_file",
+        "//cuttlefish/process:command_subprocess",
+        "//cuttlefish/process:managed_stdio",
         "//cuttlefish/result",
         "@abseil-cpp//absl/log",
     ],

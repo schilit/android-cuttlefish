@@ -21,7 +21,6 @@
 #include <linux/fs.h>
 #include <sys/sendfile.h>
 #endif
-
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -50,14 +49,13 @@
 #include <string_view>
 #include <vector>
 
-#include <android-base/file.h>
-#include <android-base/macros.h>
-#include "absl/strings/str_join.h"
-#include "absl/strings/str_split.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/str_split.h"
+#include "android-base/file.h"
+#include "android-base/macros.h"
 #include "fmt/format.h"
 
 #include "cuttlefish/common/libs/fs/shared_buf.h"
@@ -77,7 +75,7 @@
 namespace cuttlefish {
 
 bool FileExists(const std::string& path, bool follow_symlinks) {
-  struct stat st {};
+  struct stat st{};
   return (follow_symlinks ? stat : lstat)(path.c_str(), &st) == 0;
 }
 
@@ -115,46 +113,49 @@ Result<bool> AreHardLinked(const std::string& source,
           CF_EXPECT(FileInodeNumber(destination)));
 }
 
-Result<std::string> CreateHardLink(const std::string& target,
-                                   const std::string& hardlink,
-                                   const bool overwrite_existing) {
-  if (FileExists(hardlink)) {
-    if (CF_EXPECT(AreHardLinked(target, hardlink))) {
-      return hardlink;
+Result<std::string> LinkOrCopy(const std::string& target,
+                               const std::string& destination,
+                               const bool overwrite_existing) {
+  if (FileExists(destination)) {
+    if (CF_EXPECT(AreHardLinked(target, destination))) {
+      return destination;
     }
     if (!overwrite_existing) {
       return CF_ERRF(
-          "Cannot hardlink from \"{}\" to \"{}\", the second file already "
-          "exists and is not hardlinked to the first",
-          target, hardlink);
+          "Cannot link/copy from \"{}\" to \"{}\", the second file already "
+          "exists and is not a hard link to the first",
+          target, destination);
     }
-    LOG(WARNING) << "Overwriting existing file \"" << hardlink << "\" with \""
-                 << target << "\" from the cache";
-    CF_EXPECTF(unlink(hardlink.c_str()) == 0,
-               "Failed to unlink \"{}\" with error: {}", hardlink,
+    LOG(WARNING) << "Overwriting existing file \"" << destination
+                 << "\" with \"" << target << "\" from the cache";
+    CF_EXPECTF(unlink(destination.c_str()) == 0,
+               "Failed to unlink \"{}\" with error: {}", destination,
                strerror(errno));
   }
-  CF_EXPECTF(link(target.c_str(), hardlink.c_str()) == 0,
-             "link() failed trying to create hardlink from \"{}\" to \"{}\" "
-             "with error: {}",
-             target, hardlink, strerror(errno));
-  VLOG(1) << "Created hard link from \"" << target << "\" to \"" << hardlink
+  if (link(target.c_str(), destination.c_str()) == 0) {
+    VLOG(1) << "Created hard link from \"" << target << "\" to \""
+            << destination << "\"";
+    return destination;
+  }
+  CF_EXPECTF(Copy(target, destination), "Failed to copy \"{}\" to \"{}\"",
+             target, destination);
+  VLOG(1) << "Copied file from \"" << target << "\" to \"" << destination
           << "\"";
-  return hardlink;
+
+  return destination;
 }
 
-bool FileHasContent(const std::string& path) {
-  return FileSize(path) > 0;
-}
+bool FileHasContent(const std::string& path) { return FileSize(path) > 0; }
 
-Result<void> HardLinkDirecoryContentsRecursively(
+Result<void> LinkOrCopyDirectoryContentsRecursively(
     const std::string& source, const std::string& destination) {
   CF_EXPECTF(IsDirectory(source), "Source '{}' is not a directory", source);
 
   CF_EXPECT(EnsureDirectoryExists(destination, 0755));
 
-  auto linker = [&source, &destination](
-                    const std::string& filepath) mutable -> Result<void> {
+  auto linker_or_copier =
+      [&source,
+       &destination](const std::string& filepath) mutable -> Result<void> {
     const std::string src_path = filepath;
     const std::string dst_path =
         destination + "/" + filepath.substr(source.size() + 1);
@@ -163,10 +164,10 @@ Result<void> HardLinkDirecoryContentsRecursively(
       return {};
     }
     const bool overwrite_existing = true;
-    CF_EXPECT(CreateHardLink(src_path, dst_path, overwrite_existing));
+    CF_EXPECT(LinkOrCopy(src_path, dst_path, overwrite_existing));
     return {};
   };
-  CF_EXPECT(WalkDirectory(source, linker));
+  CF_EXPECT(WalkDirectory(source, linker_or_copier));
 
   return {};
 }
@@ -195,7 +196,7 @@ Result<void> MoveDirectoryContents(const std::string& source,
 
 Result<std::vector<std::string>> DirectoryContents(const std::string& path) {
   std::vector<std::string> ret;
-  std::unique_ptr<DIR, int(*)(DIR*)> dir(opendir(path.c_str()), closedir);
+  std::unique_ptr<DIR, int (*)(DIR*)> dir(opendir(path.c_str()), closedir);
   CF_EXPECTF(dir != nullptr, "Could not read from dir \"{}\"", path);
   struct dirent* ent{};
   while ((ent = readdir(dir.get()))) {
@@ -217,7 +218,7 @@ Result<std::vector<std::string>> DirectoryContentsPaths(
 }
 
 bool DirectoryExists(const std::string& path, bool follow_symlinks) {
-  struct stat st {};
+  struct stat st{};
   if ((follow_symlinks ? stat : lstat)(path.c_str(), &st) == -1) {
     return false;
   }
@@ -422,7 +423,7 @@ Result<std::string> RealPath(const std::string& path) {
 }
 
 off_t FileSize(const std::string& path) {
-  struct stat st {};
+  struct stat st{};
   if (stat(path.c_str(), &st) == -1) {
     return 0;
   }
@@ -470,8 +471,7 @@ Result<std::string> RenameFile(const std::string& current_filepath,
 Result<void> RemoveFile(const std::string& file) {
   VLOG(0) << "Removing file " << file;
   if (remove(file.c_str()) != 0) {
-    return CF_ERRF("Failed to remove file '{}' : {}", file,
-                   StrError(errno));
+    return CF_ERRF("Failed to remove file '{}' : {}", file, StrError(errno));
   }
   return {};
 }
@@ -494,7 +494,7 @@ std::string ReadFile(const std::string& file) {
     in.read(&contents[0], contents.size());
   }
   in.close();
-  return(contents);
+  return (contents);
 }
 
 Result<std::string> ReadFileContents(const std::string& filepath) {
@@ -557,7 +557,8 @@ FileSizes SparseFileSizes(const std::string& path) {
       if (fd->GetErrno() == ENXIO) {
         break;
       } else {
-        LOG(ERROR) << "Could not lseek in \"" << path << "\": " << fd->StrError();
+        LOG(ERROR) << "Could not lseek in \"" << path
+                   << "\": " << fd->StrError();
         return {};
       }
     } else {
@@ -573,18 +574,19 @@ FileSizes SparseFileSizes(const std::string& path) {
       if (fd->GetErrno() == ENXIO) {
         break;
       } else {
-        LOG(ERROR) << "Could not lseek in \"" << path << "\": " << fd->StrError();
+        LOG(ERROR) << "Could not lseek in \"" << path
+                   << "\": " << fd->StrError();
         return {};
       }
     } else {
       offset = new_offset;
     }
   }
-  return (FileSizes) { .sparse_size = farthest_seek, .disk_size = data_bytes };
+  return (FileSizes){.sparse_size = farthest_seek, .disk_size = data_bytes};
 }
 
 bool FileIsSocket(const std::string& path) {
-  struct stat st {};
+  struct stat st{};
   return stat(path.c_str(), &st) == 0 && S_ISSOCK(st.st_mode);
 }
 
@@ -638,16 +640,17 @@ Result<std::string> Search(const std::vector<std::string>& path,
   return CF_ERR("Not found: ") << name << ", path " << absl::StrJoin(path, ":");
 }
 
-Result<SharedFD> CreateOrReuseAndDrainFifo(const std::string& path, mode_t mode) {
-  struct stat st {};
+Result<SharedFD> CreateOrReuseAndDrainFifo(const std::string& path,
+                                           mode_t mode) {
+  struct stat st{};
   bool existed = false;
   if (TEMP_FAILURE_RETRY(stat(path.c_str(), &st)) != 0) {
     CF_EXPECTF(TEMP_FAILURE_RETRY(mkfifo(path.c_str(), mode)) == 0,
                "Failed to mkfifo('{}', {:o}): {}", path, mode,
                ::cuttlefish::StrError(errno));
   } else {
-    CF_EXPECTF(S_ISFIFO(st.st_mode),
-               "File at '{}' exists but is not a FIFO", path);
+    CF_EXPECTF(S_ISFIFO(st.st_mode), "File at '{}' exists but is not a FIFO",
+               path);
     existed = true;
   }
 
